@@ -1,0 +1,26 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="robots" content="NONE,NOARCHIVE" />
+	<link rel="icon" href="{{ STATIC_URL }}favicon.ico" mce_ref="/static/favicon.ico" type="image/x-icon" />
+	<link rel="shortcut icon" href="{{ STATIC_URL}}favicon.ico" mce_ref="/static/favicon.ico" type="image/x-icon" />
+    <link rel="stylesheet" href="{{ STATIC_URL }}css/bootstrap-responsive.min.css" />
+    <link rel="stylesheet" href="{{ STATIC_URL }}css/bootstrap.min.css" />
+    {% block extra-link %}
+    {% endblock extra-link %}
+    <title>{% block title %}moke server{% endblock %}</title>
+</head>
+<body>
+    {% block content %}
+    {% endblock content %}
+    <!-- content end, javascript begin -->
+	<script type="text/javascript" src="{{ STATIC_URL }}js/jquery.js"></script>
+	<script type="text/javascript" src="{{ STATIC_URL }}js/bootstrap.js"></script>
+    {% block extra-script %}
+    {% endblock extra-script %}
+    <!-- javascript end -->
+</body>
+</html>
