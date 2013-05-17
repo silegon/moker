@@ -4,7 +4,7 @@
 
 from django.contrib import admin
 from moker.models import MokerRequest, MokerResponse, SEPERATOR
-from utils import get_response
+from utils import send_request
 
 def response_body_data(obj):
     if obj.body:
@@ -25,7 +25,7 @@ class MokerRequestAdmin(admin.ModelAdmin):
 
     def make_response(self, request, queryset):
         for item in queryset:
-            get_response(item.id)
+            send_request(item.id)
     make_response.short_description = "生成HTTP Response"
 
 class MokerResponseAdmin(admin.ModelAdmin):

@@ -9,7 +9,7 @@ from models import MokerRequest, MokerResponse, SEPERATOR
 
 TIME_OUT = 5
 
-def async_send_request(req, moker_response_id=False):
+def async_send_request(req, moker_response_id):
     AsyncSendRequest(req, moker_response_id).start()
 
 class AsyncSendRequest(threading.Thread):
@@ -26,10 +26,9 @@ class AsyncSendRequest(threading.Thread):
 
     def _async_send_request(self):
         response = urllib2.urlopen(self.req, None, TIME_OUT)
-        if self.moker_response_id:
-            moker_response = MokerResponse.objects.get(pk=self.moker_response_id)
-            moker_response.body = SEPERATOR.join([str(response.headers), response.read()])
-            moker_response.save()
+        moker_response = MokerResponse.objects.get(pk=self.moker_response_id)
+        moker_response.body = SEPERATOR.join([str(response.headers), response.read()])
+        moker_response.save()
 
 def copy_request(request):
     mu = MokerRequest()
@@ -38,10 +37,8 @@ def copy_request(request):
     request_headers = "".join(["%s:%s\n" % (header[5:], value) for header, value in request.META.items() if header.startswith('HTTP_')])
     mu.body = SEPERATOR.join([first_line, request_headers, request.body])
     mu.save()
-def get_response(moker_request_id):
-    send_request(moker_request_id, record_response=True)
 
-def send_request(moker_request_id, record_response=False):
+def send_request(moker_request_id):
     moker_request = MokerRequest.objects.get(pk=moker_request_id)
     if moker_request.body:
         first_line, request_headers, request_body = moker_request.body.split(SEPERATOR)
@@ -56,17 +53,15 @@ def send_request(moker_request_id, record_response=False):
         request_headers_dict = {}
 
     req = urllib2.Request(moker_request.uri, request_body, request_headers_dict)
-    if record_response:
-        moker_response = MokerResponse()
-        moker_response.name = moker_request.name
-        moker_response.moker_request = moker_request
-        moker_response.save()
-        async_send_request(req, moker_response.pk)
-    else:
-        async_send_request(req)
+    moker_response = MokerResponse()
+    moker_response.name = moker_request.name
+    moker_response.moker_request = moker_request
+    moker_response.save()
+    async_send_request(req, moker_response.id)
 
 def moker_remote_data(request):
-    content = eval(base64.b64decode(request.POST['data']))
+    b64_content = base64.urlsafe_b64decode(str(request.POST['data']))
+    content = eval(b64_content)
     request_content = content['request_content']
     uri = request_content['uri']
     server_protocol = request_content['server_protocol']
