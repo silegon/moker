@@ -5,12 +5,11 @@ import urllib2
 import threading
 import base64
 
-from models import MokerRequest, MokerResponse
+from models import MokerRequest, MokerResponse, SEPERATOR
 
 TIME_OUT = 5
-SEPERATOR = "$$$$$$^^^$$$$$$$\n"
 
-def async_send_request(req, moker_response_id):
+def async_send_request(req, moker_response_id=False):
     AsyncSendRequest(req, moker_response_id).start()
 
 class AsyncSendRequest(threading.Thread):
@@ -27,9 +26,10 @@ class AsyncSendRequest(threading.Thread):
 
     def _async_send_request(self):
         response = urllib2.urlopen(self.req, None, TIME_OUT)
-        moker_response = MokerResponse.objects.get(pk=self.moker_response_id)
-        moker_response.body = SEPERATOR.join([str(response.headers), response.read()])
-        moker_response.save()
+        if self.moker_response_id:
+            moker_response = MokerResponse.objects.get(pk=self.moker_response_id)
+            moker_response.body = SEPERATOR.join([str(response.headers), response.read()])
+            moker_response.save()
 
 def copy_request(request):
     mu = MokerRequest()
@@ -38,8 +38,10 @@ def copy_request(request):
     request_headers = "".join(["%s:%s\n" % (header[5:], value) for header, value in request.META.items() if header.startswith('HTTP_')])
     mu.body = SEPERATOR.join([first_line, request_headers, request.body])
     mu.save()
-
 def get_response(moker_request_id):
+    send_request(moker_request_id, record_response=True)
+
+def send_request(moker_request_id, record_response=False):
     moker_request = MokerRequest.objects.get(pk=moker_request_id)
     if moker_request.body:
         first_line, request_headers, request_body = moker_request.body.split(SEPERATOR)
@@ -51,26 +53,35 @@ def get_response(moker_request_id):
                 request_headers_dict[key] = value.strip()
     else:
         request_body = None
-        request_headers_dict = {} 
-
-    moker_response = MokerResponse()
-    moker_response.name = moker_request.name
-    moker_response.moker_request = moker_request
-    moker_response.save()
+        request_headers_dict = {}
 
     req = urllib2.Request(moker_request.uri, request_body, request_headers_dict)
-    async_send_request(req, moker_response.pk)
+    if record_response:
+        moker_response = MokerResponse()
+        moker_response.name = moker_request.name
+        moker_response.moker_request = moker_request
+        moker_response.save()
+        async_send_request(req, moker_response.pk)
+    else:
+        async_send_request(req)
 
-def mock_remote_request(request):
-    _p = eval(base64.b64decode(request.POST['data']))
-    uri = _p['uri']
-    server_protocol = _p['server_protocol']
-    method = _p['method']
-    request_headers = _p['request_headers']
-    body = _p['body']
+def moker_remote_data(request):
+    content = eval(base64.b64decode(request.POST['data']))
+    request_content = content['request_content']
+    uri = request_content['uri']
+    server_protocol = request_content['server_protocol']
+    method = request_content['method']
+    request_headers = request_content['request_headers']
+    body = request_content['body']
 
-    mu = MokerRequest()
-    mu.uri = uri
     first_line = method + ' ' + uri + ' ' + server_protocol + '\n'
-    mu.body = SEPERATOR.join([first_line, request_headers, body])
-    mu.save()
+    request_body = SEPERATOR.join([first_line, request_headers, body])
+    moker_request, created = MokerRequest.objects.get_or_create(uri=uri, body=request_body)
+
+    if 'request_content' in content:
+        response_content = content['response_content']
+        response_headers = "".join(["%s: %s\n" % (key, value) for key, value in response_content['headers']])
+        body = response_content['body']
+        moker_response = MokerResponse()
+        response_body = SEPERATOR.join([response_headers, body])
+        moker_response, created = MokerResponse.objects.get_or_create(moker_request=moker_request, body=response_body)

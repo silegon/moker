@@ -1,10 +1,57 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <title></title>
-</head>
-<body>
-    <p>hello</p>
-</body>
-</html>
+{% extends 'base.html' %}
+{% block title %}发送请求{% endblock %}
+{% block extra-link %}
+    {{block.super}}
+{% endblock extra-link %}
+{% block content %}
+<div class="container">
+    <div class="row">
+        <div class="span2">
+            <ul class="nav nav-list">
+                <li class="nav-header">请求类型</li>
+                {% for item in moker_request_list %}
+                <li><a href="/send?moker_request_id={{item.id}}">{{item.name}}</a></li>
+                {% endfor %}
+            </ul>
+        </div>
+        <div class="span10">
+            {% if moker_request %}
+            <div class="row">
+                <div class="span1 moker-request-id" data-moker-request-id="{{moker_request.id}}">请求id:{{ moker_request.id }}</div>
+                <div class="span8">请求uri:{{ moker_request.uri }}</div>
+            </div>
+            <div class="row">
+                <div class="span8">
+                    <pre>
+                    {{moker_request.body}}
+                    </pre>
+                </div>
+            </div>
+            <div class="row">
+                <div class="span2">
+                    <a class="btn btn-primary" onclick="send_request();">发送请求</a>
+                </div>
+            </div>
+            {% endif %}
+        </div>
+    </div>
+</div>
+{% endblock content %}
+{% block extra-script %}
+<script>
+$.ajaxSetup({
+        type : "POST", url : "/moker_j", cache : false, dataType : "json"
+});
+function send_request(){
+    var moker_request_id = $('.moker-request-id').attr('data-moker-request-id');
+    $.ajax({
+        data:{
+            "type":"send_moker_request", "moker_request_id":moker_request_id,
+        },
+        success : function(result) {
+            alert(result);
+        }
+    });
+}
+</script>
+{% endblock %}
