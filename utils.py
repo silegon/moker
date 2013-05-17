@@ -6,6 +6,7 @@ import threading
 import base64
 
 from models import MokerRequest, MokerResponse, SEPERATOR
+from django.conf import MOKER_VERFICATION
 
 TIME_OUT = 5
 
@@ -73,7 +74,7 @@ def moker_remote_data(request):
     request_body = SEPERATOR.join([first_line, request_headers, body])
     moker_request, created = MokerRequest.objects.get_or_create(uri=uri, body=request_body)
 
-    if 'request_content' in content:
+    if 'response_content' in content:
         response_content = content['response_content']
         response_headers = "".join(["%s: %s\n" % (key, value) for key, value in response_content['headers']])
         body = response_content['body']

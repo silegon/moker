@@ -2,7 +2,7 @@
 # coding: utf-8
 # "zhoukh"<code@forpm.net> 2013-04-07 10:14:46
 
-from django.shortcuts import render_to_response
+from django.shortcuts import render_to_response, get_object_or_404
 from django.template import RequestContext
 from django.http import HttpResponse
 from django.views.decorators.csrf import csrf_exempt
@@ -19,8 +19,8 @@ def test_request(request):
         first_line, request_headers, moker_request_body = item.split(SEPERATOR)
         request_data = str(request.POST)
         if request_data == moker_request_body:
-            print 'valid'
-    print 'not valid'
+            print '%s: valid' % uri
+    print '%s: not valid' % uri 
     return HttpResponse('')
 
 @csrf_exempt
@@ -42,7 +42,7 @@ def send(request, template_name='moker/send.html'):
     _g = request.GET
     request_id = _g.get('moker_request_id', '')
     if request_id:
-        moker_request = MokerRequest.objects.get(pk=request_id)
+        moker_request = get_object_or_404(MokerRequest, pk=request_id)
     else:
         moker_request = None
 
