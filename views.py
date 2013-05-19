@@ -14,7 +14,9 @@ from utils import moker_remote_data, send_request, mock_request
 
 @csrf_exempt
 def save_to_mock_request(request):
+    # TODO
     mock_request(request)
+    return HttpResponse('')
 
 @csrf_exempt
 def ajax(request):

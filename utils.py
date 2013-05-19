@@ -7,8 +7,6 @@ import threading
 import base64
 
 from models import MokerRequest, MokerResponse
-from django.conf import MOKER_VERFICATION
-from django.conf import settings
 
 TIME_OUT = 5
 
@@ -16,13 +14,13 @@ def headers_string_to_dict(headers_string):
     headers_dict = {}
     for header_line in headers_string.splitlines():
         key, value = header_line.split(": ")
-        request_headers[key] = value
+        headers_dict[key] = value
     return headers_dict
 
 def headers_dict_to_string(headers_dict):
     return "".join(["%s: %s\n" % (key, value) for key, value in headers_dict.items()])
 
-def django_request_headers_to_string(headers_dict):
+def django_request_headers_to_string(request):
     return "".join(["%s: %s\n" % (header[5:], value) for header, value in request.META.items() if header.startswith("HTTP_")])
 
 def async_send_request(moker_request_id):
@@ -40,19 +38,19 @@ class AsyncSendRequest(threading.Thread):
         self._async_send_request()
 
     def _async_send_request(self):
-        moker_request = MokerRequest.objects.get(self.moker_request_id)
-        request_method, request_uri, server_protocol = moker_request.status.splite(" ")
+        moker_request = MokerRequest.objects.get(pk=self.moker_request_id)
+        request_method, request_uri, server_protocol = moker_request.status.split(" ")
         request_headers = headers_string_to_dict(moker_request.headers)
 
         if request_method == "GET":
-            response = requests.get(uri, headers=request_headers)
+            response = requests.get(request_uri, headers=request_headers)
         elif request_method == "POST":
-            response = requests.post(uri, headers=request_headers, data=data)
+            response = requests.post(request_uri, headers=request_headers, data=moker_request.body)
         else:
             raise
 
         response_headers = headers_dict_to_string(response.headers)
-        moker_response, created = MokerResponse.objects.o_create("HTTP/1.1", response.status_code, response.reason, response_headers, response.content, request=moker_request, check=settings.MOKER_VERFICATION)
+        moker_response, created = MokerResponse.objects.o_create("HTTP/1.1", response.status_code, response.reason, response_headers, response.content, request=moker_request)
 
 def mock_request(request):
     uri = request.build_absolute_uri()
@@ -60,7 +58,7 @@ def mock_request(request):
     method = request.method
     request_headers = django_request_headers_to_string(request)
     body = request.body
-    moker_request, created = MokerRequest.objects.o_create(method, uri, server_protocol, request_headers, body, check=settings.MOKER_VERFICATION)
+    moker_request, created = MokerRequest.objects.o_create(method, uri, server_protocol, request_headers, body)
 
 def send_request(moker_request_id):
     async_send_request(moker_request_id)
@@ -75,7 +73,7 @@ def moker_remote_data(request):
     request_headers = request_content['request_headers']
     body = request_content['body']
 
-    moker_request, created = MokerRequest.objects.o_create(method, uri, server_protocol, request_headers, body, check=settings.MOKER_VERFICATION)
+    moker_request, created = MokerRequest.objects.o_create(method, uri, server_protocol, request_headers, body)
 
     if "response_content" in content:
         response_content = content['response_content']
@@ -83,4 +81,4 @@ def moker_remote_data(request):
         status_code = response_content['status_code']
         status_msg = response_content['msg']
         response_headers = "".join(["%s: %s\n" % (key, value) for key, value in response_content['headers']])
-        moker_response, created = MokerResponse.objects.o_create(server_protocol, status_code ,status_msg , response_headers, response_content['body'], request=moker_request, check)
+        moker_response, created = MokerResponse.objects.o_create(server_protocol, status_code ,status_msg , response_headers, response_content['body'], request=moker_request)

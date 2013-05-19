@@ -18,7 +18,7 @@
             {% if moker_request %}
             <div class="row">
                 <div class="span1 moker-request-id" data-moker-request-id="{{moker_request.id}}">请求id:{{ moker_request.id }}</div>
-                <div class="span8">请求uri:{{ moker_request.uri }}</div>
+                <div class="span8">{{ moker_request.status }}</div>
             </div>
             <div class="row">
                 <div class="span8">

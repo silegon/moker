@@ -9,11 +9,11 @@ ERROR_STATUS = "<ERROR>"
 def request_status_line(method, uri, server_protocol):
     return "".join([method, " ", uri, " ",server_protocol])
 
-def response_status_line(server_protocol, code, msg):
-    return "".join([server_protocol, " ", code, " ", msg])
+def response_status_line(server_protocol, status_code, msg):
+    return "".join([server_protocol, " ", str(status_code), " ", msg])
 
 class MokerRequestManager(models.Manager):
-    def o_create(self, method, uri, server_protocol, headers, body, check=False):
+    def o_create(self, method, uri, server_protocol, headers, body):
         status = request_status_line(method, uri, server_protocol)
         try:
             if settings.MOKER_CHECK_REQUEST_HEADERS:
@@ -23,7 +23,7 @@ class MokerRequestManager(models.Manager):
             return moker_request, False
         except:
             moker_request = MokerRequest(status=status, headers=headers, body=body)
-            if check:
+            if settings.MOKER_VERFICATION:
                 moker_request.name = ERROR_STATUS
             moker_request.save()
             return moker_request, True
@@ -40,11 +40,11 @@ class MokerRequest(models.Model):
         verbose_name_plural = "mock请求"
 
     def __unicode__(self):
-        return "%s_%s_%s" % (self.name, self.id, self.uri)
+        return "%s_%s_%s" % (self.name, self.id, self.status)
 
 class MokerResponseManager(models.Manager):
-    def o_create(self, server_protocol, code, msg, headers, body, request=None, check=False):
-        status = response_status_line(server_protocol, code, msg)
+    def o_create(self, server_protocol, status_code, msg, headers, body, request=None):
+        status = response_status_line(server_protocol, status_code, msg)
         try:
             if settings.MOKER_CHECK_REQUEST_HEADERS:
                 moker_response = MokerResponse.objects.get(status=status, headers=headers, body=body, moker_request=request)
@@ -53,7 +53,7 @@ class MokerResponseManager(models.Manager):
             return moker_response, False
         except:
             moker_response = MokerResponse(status=status, headers=headers, body=body, moker_request=request)
-            if check:
+            if settings.MOKER_VERFICATION:
                 moker_response.name = ERROR_STATUS
             moker_response.save()
             return moker_response, True

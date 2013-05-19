@@ -7,7 +7,7 @@ import urllib2
 import threading
 import base64
 from django.conf import settings
-from django.core.handles.wsgi import STATUS_CODE_TEXT
+from django.core.handlers.wsgi import STATUS_CODE_TEXT
 
 TIME_OUT = 3
 
