@@ -10,18 +10,11 @@ from django.http import Http404
 
 from models import MokerRequest
 
-from utils import moker_remote_data, send_request, SEPERATOR
+from utils import moker_remote_data, send_request, mock_request
 
 @csrf_exempt
-def test_request(request):
-    uri = request.build_absolute_uri()
-    for item in  MokerRequest.objects.filter(uri=uri).exclude(name=''):
-        first_line, request_headers, moker_request_body = item.split(SEPERATOR)
-        request_data = str(request.POST)
-        if request_data == moker_request_body:
-            print '%s: valid' % uri
-    print '%s: not valid' % uri 
-    return HttpResponse('')
+def save_to_mock_request(request):
+    mock_request(request)
 
 @csrf_exempt
 def ajax(request):

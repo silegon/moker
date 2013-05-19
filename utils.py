@@ -1,64 +1,69 @@
 #!/usr/bin/env python
 # coding: utf-8
 # "zhoukh"<code@forpm.net> 2013-05-15 19:14:23
-import urllib2
+import requests
+#TODO 好像只有send_request 需要改
 import threading
 import base64
 
-from models import MokerRequest, MokerResponse, SEPERATOR
+from models import MokerRequest, MokerResponse
 from django.conf import MOKER_VERFICATION
+from django.conf import settings
 
 TIME_OUT = 5
 
-def async_send_request(req, moker_response_id):
-    AsyncSendRequest(req, moker_response_id).start()
+def headers_string_to_dict(headers_string):
+    headers_dict = {}
+    for header_line in headers_string.splitlines():
+        key, value = header_line.split(": ")
+        request_headers[key] = value
+    return headers_dict
+
+def headers_dict_to_string(headers_dict):
+    return "".join(["%s: %s\n" % (key, value) for key, value in headers_dict.items()])
+
+def django_request_headers_to_string(headers_dict):
+    return "".join(["%s: %s\n" % (header[5:], value) for header, value in request.META.items() if header.startswith("HTTP_")])
+
+def async_send_request(moker_request_id):
+    AsyncSendRequest(moker_request_id).start()
 
 class AsyncSendRequest(threading.Thread):
     """
     send http request in thread, avoid time sleep relect to frontend.
     """
-    def __init__(self, req, moker_response_id):
+    def __init__(self, moker_request_id):
         threading.Thread.__init__(self)
-        self.req = req
-        self.moker_response_id = moker_response_id
+        self.moker_request_id = moker_request_id
 
     def run(self):
         self._async_send_request()
 
     def _async_send_request(self):
-        response = urllib2.urlopen(self.req, None, TIME_OUT)
-        moker_response = MokerResponse.objects.get(pk=self.moker_response_id)
-        moker_response.body = SEPERATOR.join([str(response.headers), response.read()])
-        moker_response.save()
+        moker_request = MokerRequest.objects.get(self.moker_request_id)
+        request_method, request_uri, server_protocol = moker_request.status.splite(" ")
+        request_headers = headers_string_to_dict(moker_request.headers)
 
-def copy_request(request):
-    mu = MokerRequest()
-    mu.uri = request.build_absolute_uri()
-    first_line = request.method + ' ' + request.build_absolute_uri() + ' ' + request.META['SERVER_PROTOCOL'] + '\n'
-    request_headers = "".join(["%s:%s\n" % (header[5:], value) for header, value in request.META.items() if header.startswith('HTTP_')])
-    mu.body = SEPERATOR.join([first_line, request_headers, request.body])
-    mu.save()
+        if request_method == "GET":
+            response = requests.get(uri, headers=request_headers)
+        elif request_method == "POST":
+            response = requests.post(uri, headers=request_headers, data=data)
+        else:
+            raise
+
+        response_headers = headers_dict_to_string(response.headers)
+        moker_response, created = MokerResponse.objects.o_create("HTTP/1.1", response.status_code, response.reason, response_headers, response.content, request=moker_request, check=settings.MOKER_VERFICATION)
+
+def mock_request(request):
+    uri = request.build_absolute_uri()
+    server_protocol = request.META["SERVER_PROTOCOL"]
+    method = request.method
+    request_headers = django_request_headers_to_string(request)
+    body = request.body
+    moker_request, created = MokerRequest.objects.o_create(method, uri, server_protocol, request_headers, body, check=settings.MOKER_VERFICATION)
 
 def send_request(moker_request_id):
-    moker_request = MokerRequest.objects.get(pk=moker_request_id)
-    if moker_request.body:
-        first_line, request_headers, request_body = moker_request.body.split(SEPERATOR)
-        request_method, request_uri, request_protocal = first_line.split()
-        request_headers_dict = {}
-        for item in request_headers.split('\n'):
-            if item:
-                key, value = item.split(':', 1)
-                request_headers_dict[key] = value.strip()
-    else:
-        request_body = None
-        request_headers_dict = {}
-
-    req = urllib2.Request(moker_request.uri, request_body, request_headers_dict)
-    moker_response = MokerResponse()
-    moker_response.name = moker_request.name
-    moker_response.moker_request = moker_request
-    moker_response.save()
-    async_send_request(req, moker_response.id)
+    async_send_request(moker_request_id)
 
 def moker_remote_data(request):
     b64_content = base64.urlsafe_b64decode(str(request.POST['data']))
@@ -70,14 +75,12 @@ def moker_remote_data(request):
     request_headers = request_content['request_headers']
     body = request_content['body']
 
-    first_line = method + ' ' + uri + ' ' + server_protocol + '\n'
-    request_body = SEPERATOR.join([first_line, request_headers, body])
-    moker_request, created = MokerRequest.objects.get_or_create(uri=uri, body=request_body)
+    moker_request, created = MokerRequest.objects.o_create(method, uri, server_protocol, request_headers, body, check=settings.MOKER_VERFICATION)
 
-    if 'response_content' in content:
+    if "response_content" in content:
         response_content = content['response_content']
+        server_protocol = response_content['server_protocol']
+        status_code = response_content['status_code']
+        status_msg = response_content['msg']
         response_headers = "".join(["%s: %s\n" % (key, value) for key, value in response_content['headers']])
-        body = response_content['body']
-        moker_response = MokerResponse()
-        response_body = SEPERATOR.join([response_headers, body])
-        moker_response, created = MokerResponse.objects.get_or_create(moker_request=moker_request, body=response_body)
+        moker_response, created = MokerResponse.objects.o_create(server_protocol, status_code ,status_msg , response_headers, response_content['body'], request=moker_request, check)
