@@ -9,7 +9,8 @@ import base64
 from django.conf import settings
 from django.core.handlers.wsgi import STATUS_CODE_TEXT
 
-TIME_OUT = 3
+TIME_OUT = 3.0
+ABANDOMED_EXTENSION = ["jpg", "png", "css", "js", "ico"]
 
 def async_send_request(content):
     AsyncSendRequest(content).start()
@@ -46,7 +47,8 @@ def log_req(req):
 
 class MokerMiddleware(object):
     def process_response(self, request, response):
-        if request.path[-3:] not in ["jpg", "png", "css", ".js", "ion"]:
+        import pdb;pdb.set_trace()
+        if request.path.split('.')[-1] not in ABANDOMED_EXTENSION:
             request_content = {
                 "uri" : request.build_absolute_uri(),
                 "server_protocol" : request.META["SERVER_PROTOCOL"],

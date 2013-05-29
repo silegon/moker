@@ -1,12 +1,15 @@
 #!/usr/bin/env python
 # coding: utf-8
 # "zhoukh"<code@forpm.net> 2013-05-15 19:14:23
-import requests
+import urllib2
 #TODO 好像只有send_request 需要改
 import threading
 import base64
+#import simplejson
 
 from models import MokerRequest, MokerResponse
+from django.conf import settings
+from django.core.handlers.wsgi import STATUS_CODE_TEXT
 
 TIME_OUT = 5
 
@@ -22,9 +25,6 @@ def headers_dict_to_string(headers_dict):
 
 def django_request_headers_to_string(request):
     return "".join(["%s: %s\n" % (header[5:], value) for header, value in request.META.items() if header.startswith("HTTP_")])
-
-def async_send_request(moker_request_id):
-    AsyncSendRequest(moker_request_id).start()
 
 class AsyncSendRequest(threading.Thread):
     """
@@ -42,15 +42,21 @@ class AsyncSendRequest(threading.Thread):
         request_method, request_uri, server_protocol = moker_request.status.split(" ")
         request_headers = headers_string_to_dict(moker_request.headers)
 
+        response = urllib2.urlopen(request_uri, moker_request.body, request_headers)
+
+        """
         if request_method == "GET":
             response = requests.get(request_uri, headers=request_headers)
-        elif request_method == "POST":
-            response = requests.post(request_uri, headers=request_headers, data=moker_request.body)
+        elif request_method == "POST": # application/x-www-form-urlencoded
+            payload = simplejson.loads(moker_request.body)
+            response = requests.post(request_uri, headers=request_headers, data=payload)
         else:
             raise
+        """
 
-        response_headers = headers_dict_to_string(response.headers)
-        moker_response, created = MokerResponse.objects.o_create("HTTP/1.1", response.status_code, response.reason, response_headers, response.content, request=moker_request)
+        if response.url.split('.')[-1] not in settings.ABANDONED_EXTENSION:
+            response_headers = headers_dict_to_string(response.items())
+            moker_response, created = MokerResponse.objects.o_create("HTTP/1.1", response.status_code, STATUS_CODE_TEXT[response.status_code], response_headers, response.content, request=moker_request)
 
 def mock_request(request):
     uri = request.build_absolute_uri()
@@ -58,10 +64,11 @@ def mock_request(request):
     method = request.method
     request_headers = django_request_headers_to_string(request)
     body = request.body
-    moker_request, created = MokerRequest.objects.o_create(method, uri, server_protocol, request_headers, body)
+    if request.path.split('.')[-1] not in settings.ABANDONED_EXTENSION:
+        moker_request, created = MokerRequest.objects.o_create(method, uri, server_protocol, request_headers, body)
 
 def send_request(moker_request_id):
-    async_send_request(moker_request_id)
+    AsyncSendRequest(moker_request_id).start()
 
 def moker_remote_data(request):
     b64_content = base64.urlsafe_b64decode(str(request.POST['data']))
